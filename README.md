@@ -68,3 +68,75 @@ The practical question for management is where to intervene. If late deliveries 
 3. How long do deliveries actually take compared with the estimated delivery date, and what proportion of orders arrive late?
 4. Do late deliveries receive lower review scores than on time deliveries?
 5. Which product categories and seller states have the worst delivery performance, and how much revenue is
+
+### Section A additions — Dataset limitations
+
+Filtering to delivered orders (see Section B) means cancellations are excluded from the analysis, so this model cannot report a cancellation rate. Removing the seller-handover and carrier-pickup timestamps also means lateness cannot be attributed to the seller versus the carrier. These are acceptable given the business problem focuses on delivery outcome and its effect on satisfaction, but they define the boundary of what the solution can answer.
+
+Before finalising the analytical questions, question 5 was checked against the raw data to confirm seller *state* varies in late-delivery rate (it ranges from about 6% to over 20% across states), so the question is answerable rather than assumed.
+
+---
+
+## Section B: Power Query — Data Cleaning & Transformation
+
+The following eight transformations are documented in Problem → Transformation → Reason → Result form. Additional supporting steps (type corrections, renames, column removals) were also applied across the six tables.
+
+### 1. Filter orders to delivered status only
+**Problem:** The orders table contained 99,441 orders across eight statuses, including canceled, shipped, unavailable and processing. Non-delivered orders have no actual delivery date.
+**Transformation:** Filtered the order_status column to keep only "delivered".
+**Reason:** The business problem is about delivery performance and its effect on reviews. An order that was never delivered has no delivery experience to measure or rate, and would sit in the data as a blank that distorts delivery averages.
+**Result:** 96,478 delivered orders remain, each with a complete purchase-to-delivery lifecycle.
+![Filter to delivered orders](screenshots/02_filter_delivered.png)
+
+### 2. Remove delivered orders with no delivery date
+**Problem:** A small number of orders were marked "delivered" but had no recorded delivery date, a source data inconsistency.
+**Transformation:** Removed rows where order_delivered_customer_date was empty.
+**Reason:** Every delivery calculation depends on this date being present. Leaving nulls in would silently break averages and subtractions.
+**Result:** All remaining orders have a valid delivery date; the column profiles as 100% valid.
+![Remove null delivery dates](screenshots/03_remove_null_delivery_dates.png)
+
+### 3. Create Delivery Delay Days (custom column)
+**Problem:** The data implied whether an order was late through two separate date columns but did not state the delay directly.
+**Transformation:** Added a custom column, Delivery Delay Days, calculated as Duration.Days between the actual delivery date and the estimated delivery date.
+**Reason:** A single per-order delay value is needed to filter, group and analyse delivery performance. A positive value means the order arrived after the promised date; negative means early.
+**Result:** Each order carries a delay figure ranging from about -51 (very early) to +49 (very late).
+![Delivery delay column](screenshots/05_delivery_delay_column.png)
+
+### 4. Create Delivery Status flag (conditional column)
+**Problem:** The raw delay number is precise but not directly usable for grouping orders into late versus on-time.
+**Transformation:** Added a conditional column, Delivery Status: if Delivery Delay Days is greater than 0 then "Late", otherwise "On Time".
+**Reason:** Analytical question 4 asks whether late deliveries receive lower reviews, which requires every order tagged as Late or On Time. Orders arriving exactly on the estimated day are treated as On Time, since they did not breach the promise.
+**Result:** Every order is classified, with roughly 8% Late and 92% On Time.
+![Delivery status flag](screenshots/06_delivery_status_flag.png)
+
+### 5. Merge English category names (merge queries)
+**Problem:** Product categories were in Portuguese, which is not suitable for a report intended for an English-reading audience.
+**Transformation:** Merged the products table with the category translation table on product_category_name using a Left Outer join, then expanded the English name column.
+**Reason:** A Left Outer join keeps every product and adds the English name where a match exists, rather than dropping unmatched products. This preserves all data and exposes categories with no translation instead of hiding them.
+**Result:** Products now carry an English category name; unmatched categories surface as null for separate handling.
+![Merge category translation](screenshots/10b_merge_queries_step.png)
+
+### 6. Handle missing product categories
+**Problem:** After the merge, about 2% of products had no category — 610 with no original Portuguese category and 2 with no available English translation.
+**Transformation:** Replaced the null English category values with "Unknown".
+**Reason:** These products still generated real orders and revenue. Removing them would understate totals, whereas labelling them "Unknown" keeps them in the analysis as a visible, honest category.
+**Result:** No null categories remain; every product is assigned a category, real or "Unknown".
+![Handle missing categories](screenshots/10_products_category_cleaned.png)
+
+### 7. Group reviews to one score per order (group by)
+**Problem:** The reviews table had 99,224 reviews but only 98,673 distinct order_ids — 551 orders had more than one review, which would double-count those orders in any average.
+**Transformation:** Grouped the reviews table by order_id and aggregated review_score as an Average.
+**Reason:** Analytical question 4 needs one representative score per order so each order counts once. Averaging multiple reviews fairly captures a mixed experience.
+**Result:** 98,673 rows, one average review score per order, ready for a clean one-to-one link to orders.
+![Group reviews by order](screenshots/13_reviews_groupby.png)
+
+### 8. Remove unnecessary columns across tables
+**Problem:** Several tables carried columns irrelevant to the business problem: zip code prefixes, intermediate order timestamps, product listing metadata, and review comment text.
+**Transformation:** Removed these columns from the orders, customers, sellers, products and reviews tables.
+**Reason:** None of the five analytical questions use these fields. A leaner model is easier to relate, faster, and simpler to reason about.
+**Result:** Each table retains only the keys and attributes its analysis requires.
+![Remove unnecessary columns](screenshots/04_remove_intermediate_timestamps.png)
+
+### Tables excluded from the model
+- **Geolocation** (1,000,163 rows): excluded because customers and sellers already carry city and state, and the table adds heavy duplication and no analytical gain.
+- **Order payments**: assessed and excluded because no analytical question uses payment method, instalments or value.

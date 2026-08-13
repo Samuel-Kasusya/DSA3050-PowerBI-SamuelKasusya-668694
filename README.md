@@ -188,7 +188,7 @@ Fourteen measures were created across three levels (core, business and advanced)
 **Useful because:** It is the headline financial figure the overview is built around and the base for several other measures.
 **Functions:** SUM.
 **Filter context:** Sitting in the fact table, it responds to every filter applied through the model, so selecting a state, category or year recalculates it for that slice.
-**Used in:** PLACEHOLDER
+**Used in:** Executive Overview (KPI card) and Detailed Analysis
 
 ### 2. Total Orders
 `Total Orders = DISTINCTCOUNT(olist_orders_dataset[order_id])`
@@ -197,7 +197,7 @@ Fourteen measures were created across three levels (core, business and advanced)
 **Useful because:** It is the denominator for delivery-rate measures and a core KPI.
 **Functions:** DISTINCTCOUNT.
 **Filter context:** Counting from the orders table matters because that table is filtered to delivered orders only, while the items table still holds all orders. Counting there keeps the figure consistent with the delivered-only scope and reconciles with the delivery measures.
-**Used in:** PLACEHOLDER
+**Used in:** Executive Overview (KPI card)
 
 ### 3. % Late Deliveries
 `% Late Deliveries = DIVIDE([Late Deliveries], [Total Orders], 0)`
@@ -207,7 +207,7 @@ where `Late Deliveries = CALCULATE([Total Orders], olist_orders_dataset[Delivery
 **Useful because:** It is the single number that captures the whole delivery-performance problem.
 **Functions:** DIVIDE, CALCULATE.
 **Filter context:** CALCULATE overrides the filter context to count only Late orders, while still respecting any state, category or time filter applied. DIVIDE guards against division by zero. Currently about 6.8%.
-**Used in:** PLACEHOLDER
+**Used in:** Executive Overview and Diagnostic (KPI cards)
 
 ### 4. Average Review Score
 `Average Review Score = AVERAGE(olist_order_reviews_dataset[Average Review Score])`
@@ -216,7 +216,7 @@ where `Late Deliveries = CALCULATE([Total Orders], olist_orders_dataset[Delivery
 **Useful because:** It is the satisfaction side of the business problem and the measure tested against delivery lateness.
 **Functions:** AVERAGE.
 **Filter context:** Because reviews relate to orders one-to-one, filtering orders by delivery status lets this be compared for late versus on-time orders, which is the core of the analysis, currently about 4.09.
-**Used in:** PLACEHOLDER
+**Used in:** Executive Overview and Diagnostic pages
 
 ### 5. Previous Year Revenue
 `Previous Year Revenue = CALCULATE([Total Revenue], SAMEPERIODLASTYEAR(DimDate[Date]))`
@@ -225,7 +225,7 @@ where `Late Deliveries = CALCULATE([Total Orders], olist_orders_dataset[Delivery
 **Useful because:** It enables trend and growth analysis rather than a single static total.
 **Functions:** CALCULATE, SAMEPERIODLASTYEAR.
 **Filter context:** SAMEPERIODLASTYEAR shifts the date filter back one year, which only works because DimDate is a marked, continuous date table related to orders. Caveat: the data ends in October 2018, so any 2018 year-on-year figure compares a partial year against a full one and must be read with that in mind.
-**Used in:** PLACEHOLDER
+**Used in:** supports the revenue trend analysis
 
 ### 6. Late Revenue Exposure
 `Late Revenue Exposure = CALCULATE([Total Revenue], olist_orders_dataset[Delivery Status] = "Late")`
@@ -234,4 +234,33 @@ where `Late Deliveries = CALCULATE([Total Orders], olist_orders_dataset[Delivery
 **Useful because:** It quantifies how much money is associated with poor delivery performance, turning a quality problem into a financial one.
 **Functions:** CALCULATE.
 **Filter context:** CALCULATE filters Total Revenue to only late orders while respecting category and state filters, so the dashboard can show which categories or regions have the most revenue exposed to late delivery.
-**Used in:** PLACEHOLDER
+**Used in:** Diagnostic page (KPI card)
+
+## Section E: Dashboard Design & Storytelling
+
+The report has three pages that move from summary to deep-dive to diagnosis, so a reader can go from what happened, to where, to why.
+
+### Page 1 — Executive Overview
+![Executive Overview](screenshots/19_dashboard_overview.png)
+
+This page gives management the headline picture in seconds. Four KPI cards show Total Revenue (13.59M), Total Orders (96K), % Late Deliveries (6.77%) and Average Review Score (4.09). A line chart tracks revenue over the year, a bar chart ranks the top 10 categories by revenue, and a treemap shows order concentration by state, where São Paulo clearly dominates. Year and state slicers let the reader filter the whole page. This answers analytical questions 1 and 2 — overall performance, category contribution and geographic distribution.
+
+### Page 2 — Detailed Analysis
+![Detailed Analysis](screenshots/20_dashboard_analysis.png)
+
+This page goes deeper into category and seller performance. A table compares every category across average order value, average review score and total revenue at once. A donut shows the revenue share of the top 5 categories, a treemap breaks down the top 10 by revenue, and a bar chart shows revenue by seller state. Together these show not just which categories earn most, but how concentrated the business is and where the selling happens. This supports question 1 in more depth and adds the seller dimension.
+
+### Page 3 — Diagnostic Analysis
+![Diagnostic Analysis](screenshots/21_dashboard_diagnostic.png)
+
+This is the analytical core of the report and answers the core business problem. KPI cards show % Late Deliveries, Average Review Score and Late Revenue Exposure (985.92K). The central column chart compares average review score for On Time versus Late orders — and the gap is stark: on-time orders score around 4.3 while late orders drop to around 2.3. This directly answers question 4: late delivery clearly damages customer satisfaction. Two bar charts then show where lateness concentrates — by seller state (Amazonas and Maranhão worst, over 20%) and by category — answering question 5 and pointing to exactly where intervention would help most.
+
+### Interactivity
+The report uses slicers on every page (year, state, category, delivery status), and cross-filtering is enabled so clicking any visual filters the others. Drill-down is available on the category visuals. A consistent theme and colour palette is applied across all pages for a professional, readable layout.
+
+### Business Insights
+1. Delivery lateness is the single biggest driver of poor reviews. On-time orders average around 4.3 stars while late orders fall to around 2.3, a gap far larger than any variation between product categories. Fixing delivery would raise satisfaction more than any category-level change.
+
+2. Late delivery is geographically concentrated. Sellers in Amazonas and Maranhão have late rates above 20%, versus a platform average of 6.77%. Targeting logistics support at a small number of states would address a large share of the problem.
+
+3. Nearly 986K in revenue is tied to orders that were delivered late. This reframes delivery from a service issue into a financial one, quantifying how much revenue is exposed to the reputational risk of poor delivery.

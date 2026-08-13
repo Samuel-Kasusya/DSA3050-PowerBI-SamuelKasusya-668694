@@ -140,3 +140,39 @@ The following eight transformations are documented in Problem → Transformation
 ### Tables excluded from the model
 - **Geolocation** (1,000,163 rows): excluded because customers and sellers already carry city and state, and the table adds heavy duplication and no analytical gain.
 - **Order payments**: assessed and excluded because no analytical question uses payment method, instalments or value.
+
+## Section C: Data Modelling
+
+The cleaned tables were organised into a star schema rather than a single flat table, so that descriptive dimensions filter a central fact table through clear one-to-many relationships.
+
+![Data model](screenshots/15_model_view.png)
+
+### Fact table
+**olist_order_items_dataset** is the fact table. It sits at the centre of the model and holds the transactional measures, price and freight value, the grain of one row per item within an order. Every other table relates into it on the "one" side, making it the natural fact.
+
+### Dimension tables
+- **olist_orders_dataset** provides order-level attributes: order date, delivery dates, delivery delay and delivery status. It links to order_items on order_id.
+- **olist_products_dataset** provides the product category (in English, merged from the translation table). It links to order_items on product_id.
+- **olist_sellers_dataset** provides seller city and state. It links to order_items on seller_id.
+- **olist_customers_dataset** provides customer city and state. It links to orders on customer_id.
+- **olist_order_reviews_dataset** provides the average review score per order. It links to orders on order_id.
+- **DimDate** is a dedicated date table covering every day from 2016 to 2018. It links to orders on Order Date and drives all time-based analysis.
+
+### Relationships and cardinality
+Most relationships are one-to-many, with the dimension on the "one" side and order_items or orders on the "many" side. 
+
+Two relationships are one-to-one. Reviews to orders is one-to-one because the reviews table was grouped to a single average score per order during Power Query. Customers to orders is one-to-one because of how the source defines customer_id.
+
+### The customer key nuance
+customer_id is defined at the order level, the source generates a new customer_id for every order, which is why customers relates to orders one-to-one. The column that identifies an actual person across multiple orders is customer_unique_id. Because none of the five analytical questions require counting distinct individuals, the one-to-one relationship does not disrupt any insight. Where a true customer count is ever needed, it would use a distinct count of customer_unique_id rather than a row count.
+
+### Date table
+DimDate was created with the DAX CALENDAR function, range: 2016 to 2018 and given Year, Quarter, Month Number and Month Name columns. Month Name is sorted by Month Number so chart axes order correctly. The table was formally marked as a date table so that time intelligence functions behave correctly. It relates to orders on Order Date, which is the primary business date. The orders table also holds delivered and estimated delivery dates, but a date table can only relate to one column, and order date is the natural axis for trend and year-on-year analysis.
+
+### Filter direction
+All relationships use single-direction cross-filtering, flowing from the dimensions into the fact. Bidirectional filtering was avoided to prevent ambiguous filter paths.
+
+### Modelling decisions and challenges
+- The product category translation table was set to not load into the model, because its English column was already merged into the products table during Power Query. This avoids a redundant, disconnected table.
+- The geolocation table was excluded entirely, as customer and seller state already provide the geography needed, and geolocation would have added a million duplicated rows and an ambiguous relationship path.
+- Two grains coexist in the model: order_items is per item (for revenue) while orders is per order (for delivery performance). These relate cleanly on order_id, so both item-level and order-level analysis are possible from one model.

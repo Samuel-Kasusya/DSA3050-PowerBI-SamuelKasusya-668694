@@ -176,3 +176,62 @@ All relationships use single-direction cross-filtering, flowing from the dimensi
 - The product category translation table was set to not load into the model, because its English column was already merged into the products table during Power Query. This avoids a redundant, disconnected table.
 - The geolocation table was excluded entirely, as customer and seller state already provide the geography needed, and geolocation would have added a million duplicated rows and an ambiguous relationship path.
 - Two grains coexist in the model: order_items is per item (for revenue) while orders is per order (for delivery performance). These relate cleanly on order_id, so both item-level and order-level analysis are possible from one model.
+
+## Section D: DAX & Business Calculations
+
+Fourteen measures were created across three levels (core, business and advanced). The six most important are documented below.
+
+### 1. Total Revenue
+`Total Revenue = SUM(olist_order_items_dataset[price])`
+
+**Calculates:** The total value of all items sold, summing the price column of the fact table. Freight is excluded because it is a shipping cost passed to the customer, not revenue earned.
+**Useful because:** It is the headline financial figure the overview is built around and the base for several other measures.
+**Functions:** SUM.
+**Filter context:** Sitting in the fact table, it responds to every filter applied through the model, so selecting a state, category or year recalculates it for that slice.
+**Used in:** PLACEHOLDER
+
+### 2. Total Orders
+`Total Orders = DISTINCTCOUNT(olist_orders_dataset[order_id])`
+
+**Calculates:** The number of distinct delivered orders, counted from the orders table rather than the order items table.
+**Useful because:** It is the denominator for delivery-rate measures and a core KPI.
+**Functions:** DISTINCTCOUNT.
+**Filter context:** Counting from the orders table matters because that table is filtered to delivered orders only, while the items table still holds all orders. Counting there keeps the figure consistent with the delivered-only scope and reconciles with the delivery measures.
+**Used in:** PLACEHOLDER
+
+### 3. % Late Deliveries
+`% Late Deliveries = DIVIDE([Late Deliveries], [Total Orders], 0)`
+where `Late Deliveries = CALCULATE([Total Orders], olist_orders_dataset[Delivery Status] = "Late")`
+
+**Calculates:** The proportion of delivered orders that arrived after the estimated delivery date.
+**Useful because:** It is the single number that captures the whole delivery-performance problem.
+**Functions:** DIVIDE, CALCULATE.
+**Filter context:** CALCULATE overrides the filter context to count only Late orders, while still respecting any state, category or time filter applied. DIVIDE guards against division by zero. Currently about 6.8%.
+**Used in:** PLACEHOLDER
+
+### 4. Average Review Score
+`Average Review Score = AVERAGE(olist_order_reviews_dataset[Average Review Score])`
+
+**Calculates:** The mean customer review score across orders, on a 1 to 5 scale.
+**Useful because:** It is the satisfaction side of the business problem and the measure tested against delivery lateness.
+**Functions:** AVERAGE.
+**Filter context:** Because reviews relate to orders one-to-one, filtering orders by delivery status lets this be compared for late versus on-time orders, which is the core of the analysis, currently about 4.09.
+**Used in:** PLACEHOLDER
+
+### 5. Previous Year Revenue
+`Previous Year Revenue = CALCULATE([Total Revenue], SAMEPERIODLASTYEAR(DimDate[Date]))`
+
+**Calculates:** Total revenue for the equivalent period one year earlier, used as the basis for year-on-year growth.
+**Useful because:** It enables trend and growth analysis rather than a single static total.
+**Functions:** CALCULATE, SAMEPERIODLASTYEAR.
+**Filter context:** SAMEPERIODLASTYEAR shifts the date filter back one year, which only works because DimDate is a marked, continuous date table related to orders. Caveat: the data ends in October 2018, so any 2018 year-on-year figure compares a partial year against a full one and must be read with that in mind.
+**Used in:** PLACEHOLDER
+
+### 6. Late Revenue Exposure
+`Late Revenue Exposure = CALCULATE([Total Revenue], olist_orders_dataset[Delivery Status] = "Late")`
+
+**Calculates:** The total revenue tied to orders that were delivered late.
+**Useful because:** It quantifies how much money is associated with poor delivery performance, turning a quality problem into a financial one.
+**Functions:** CALCULATE.
+**Filter context:** CALCULATE filters Total Revenue to only late orders while respecting category and state filters, so the dashboard can show which categories or regions have the most revenue exposed to late delivery.
+**Used in:** PLACEHOLDER
